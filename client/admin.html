@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+
+    <link rel="stylesheet" href="/bulma/bulma.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+    <style>
+        input[type=text],
+        input[type=file] {
+            min-width: 24px;
+            width: unset;
+        }
+
+        #version_list li input[type=text]:first-child {
+            width: 4rem;
+        }
+
+        .file-name {
+            max-width: unset;
+        }
+
+        ul {
+            margin-bottom: 2rem;
+        }
+
+        li.is-fullwidth {
+            width: 100%;
+        }
+
+        label {
+            display: flex !important;
+            align-items: center;
+        }
+
+        label input {
+            margin-left: 0.5rem;
+        }
+
+        .user .tags,
+        .user .tag {
+            margin-bottom: 0 !important;
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <section class="section has-background-info is-flex is-justify-content-center" style="min-height: 100vh;">
+
+        <div class="container">
+            <div class="box">
+                <h1 class="title">Admin Panel</h1>
+
+                <h2 class="title is-4">Server Settings</h2>
+                <ul id="server_settings"></ul>
+
+                <h2 class="title is-4">Blender Installations</h2>
+                <ul id="version_list">
+                    <button class="button is-small mt-2 is-success" onclick="add_new_version()"><i class="fas fa-plus mr-2"></i>add</button>
+                </ul>
+
+                <h2 class="title is-4">Users</h2>
+                <ul id="user_list">
+                    <button class="button is-small mt-2 is-success" onclick="add_new_user()"><i class="fas fa-plus mr-2"></i>add</button>
+                </ul>
+
+
+
+
+
+
+                <div class="block mt-4">
+                    <button class="button is-info" onclick="save_config()"><i class="fas fa-floppy-disk mr-2"></i>Save Config</button>
+                    <a href="/" class="button"><i class="fas fa-arrow-left mr-2"></i>Return</a>
+                </div>
+                <span id="msg"></span>
+            </div>
+        </div>
+
+    </section>
+
+
+
+
+
+    <script type="module">
+
+        const server_settings = document.getElementById( 'server_settings' )
+        const version_list = document.getElementById( 'version_list' )
+        const user_list = document.getElementById( 'user_list' )
+
+        const config_request = await fetch( '/config' )
+        const config = await config_request.json()
+        populate_page( config )
+
+        function add_new_version( data )
+        {
+            const item = document.createElement( 'li' )
+            item.classList.add( "blender_version", "is-flex", "mb-2" )
+            item.innerHTML = `<input class="input is-small mr-2 version" type="text" value="${data?.version || ""}" placeholder="Version"><input class="input is-small is-flex-grow-1 mr-2 exe" type="text" value="${data?.exe_path || ""}" placeholder="Full Path"><button class="button is-small is-danger" onclick="remove_version(event)"><i class="fas fa-trash"></i></button>`
+            version_list.prepend( item )
+        }
+        window.add_new_version = add_new_version
+
+        function add_new_user( data )
+        {
+            const item = document.createElement( 'li' )
+            item.classList.add( "user", "is-flex", "is-fullwidth", "is-justify-content-space-between", "mb-2" )
+            const is_admin = ( data?.permissions == 1 ) ? "selected" : ""
+            const is_user = ( data?.permissions == 0 || data?.permissions == null ) ? "selected" : ""
+            item.innerHTML = `<span class="tags has-addons mr-2"><span class="tag is-dark">UUID</span><span class="tag uuid">${data?.uuid || generate_uuid()}</span></span><input class="input is-small mr-2 uname" type="text" value="${data?.username || ""}" placeholder="Username"><input class="input is-small mr-2 pwd" type="text" value="${data?.password || ""}" placeholder="Password"><div class="select is-small mr-2"><select class="permissions"><option value="1" ${is_admin}>Admin</option><option value="0" ${is_user}>User</option></select></div><div class="is-flex-grow-1"></div><button class="button is-small is-danger" onclick="remove_version(event)"><i class="fas fa-trash"></i></button>`
+            user_list.prepend( item )
+        }
+        window.add_new_user = add_new_user
+
+        function generate_uuid( length = 4 ) { return parseInt( Math.ceil( Math.random() * Date.now() ).toPrecision( length ).toString().replace( ".", "" ) ) }
+
+
+
+
+        window.remove_version = function ( event ) { event.target.parentNode.remove() }
+
+        function populate_server_config( data )
+        {
+            server_settings.innerHTML += `\n<label class="label">Port<input class="input cnf_port" type="text" value="${data.PORT}"></label>`
+            server_settings.innerHTML += `\n<label class="label">JWT Secret<input class="input cnf_jwt" type="text" value="${data.JWT_SECRET}"></label>`
+        }
+
+
+
+        function update_config()
+        {
+            config.global.PORT = document.querySelector( '.cnf_port' ).value
+            config.global.JWT_SECRET = document.querySelector( '.cnf_jwt' ).value
+            config.blender_installations = []
+            for ( const item of version_list.querySelectorAll( ".blender_version" ) )
+            {
+                const install = {}
+                install.version = item.querySelector( ".version" ).value
+                install.exe_path = item.querySelector( ".exe" ).value.replaceAll( "\\", "/" )
+                config.blender_installations.push( install )
+            }
+            config.users = []
+            for ( const item of user_list.querySelectorAll( ".user" ) )
+            {
+                const user = {}
+                user.uuid = item.querySelector( ".uuid" ).textContent
+                user.username = item.querySelector( '.uname' ).value.toLowerCase() // convention is lowercase, login code is case insensitive
+                user.password = item.querySelector( '.pwd' ).value
+                user.permissions = item.querySelector( '.permissions' ).value
+                config.users.push( user )
+            }
+
+            config.blender_installations.sort( ( a, b ) => a.version - b.version )
+            config.users.sort( ( a, b ) => a.uuid - b.uuid )
+            console.log( config )
+        }
+        window.update_config = update_config // DEBUG ONLY
+
+        async function save_config()
+        {
+            update_config()
+            const request = await fetch( '/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify( config )
+            } )
+            const response = await request.json()
+            document.querySelector( '#msg' ).textContent = response.msg
+            setTimeout( () => window.location.reload(), 2000 )
+        }
+        window.save_config = save_config
+
+
+        function populate_page( config_obj )
+        {
+            for ( const install of config_obj.blender_installations ) add_new_version( install )
+            for ( const user of config_obj.users ) add_new_user( user )
+            populate_server_config( config_obj.global )
+        }
+
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blenderfarm Dashboard</title>
+
+    <link rel="stylesheet" href="/bulma/bulma.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
+
+        .logo {
+            width: 128px;
+        }
+
+        .blendfile {
+            width: 24px;
+            height: 24px;
+            background-image: url('/Blender.png');
+            background-size: contain;
+            background-position: center;
+        }
+
+        #project_list .tags,
+        #project_list .tag {
+            margin-bottom: 0;
+        }
+
+        .project {
+            border-radius: .25rem;
+            cursor: pointer;
+            padding-bottom: .5rem;
+
+        }
+
+        .project.unfolded {
+            box-shadow: 0 0.5em 1em -0.125em rgb(10 10 10 / 10%), 0 0 0 1px rgb(10 10 10 / 2%);
+            padding-bottom: 0;
+        }
+
+        .project:hover,
+        .project.unfolded {
+            background-color: #f5f5f5;
+        }
+
+        .project_controls {
+            background-color: white;
+        }
+
+        .is-loading .file-cta,
+        .is-loading .button {
+            padding-right: 2rem;
+        }
+
+        .is-loading,
+        .is-loading * {
+            cursor: not-allowed !important;
+        }
+
+        .file .file-label.is-loading::after,
+        .control.render_button.is-loading::after {
+            border: 2px solid rgba(0, 0, 0, .7);
+            border-right-color: transparent;
+            border-top-color: transparent;
+            top: 0.725em;
+        }
+
+        .control.render_button.is-loading::after {
+            top: 0.5rem;
+        }
+
+        div.is-fullwidth,
+        ul.is-fullwidth {
+            width: 100%;
+        }
+
+        .project_controls {
+            display: none;
+            border-radius: 0 0 .25rem .25rem;
+            cursor: default;
+        }
+
+        .unfolded .project_controls {
+            display: flex;
+        }
+
+        .checkbox {
+            line-height: 0;
+        }
+
+        input[type=text] {
+            min-width: 24px;
+            width: unset;
+        }
+
+        input.framenumber {
+            width: 94px;
+        }
+
+        .confirm_delete,
+        .console {
+            display: none;
+        }
+
+        .progress {
+            display: none;
+            height: 0.5rem;
+            margin-bottom: 0 !important;
+        }
+
+        .console {
+            height: 400px;
+            border-radius: .5rem;
+            font-family: 'Roboto Mono', monospace;
+            overflow-y: scroll;
+        }
+
+        .console::-webkit-scrollbar {
+            width: 24px;
+        }
+
+        .console::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .console::-webkit-scrollbar-thumb {
+            background: #888;
+            border: 8px solid rgba(0, 0, 0, 0);
+            background-clip: padding-box;
+            border-radius: 9999px;
+            min-height: 64px;
+        }
+
+        .console::-webkit-scrollbar-thumb:hover {
+            background: #555;
+            background-clip: padding-box;
+        }
+
+        .confirm_delete.show,
+        .progress.show,
+        .console.show {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <section class="section has-background-info" style="min-height: 100vh;">
+        <div class="container">
+            <div class="box">
+                <div class="is-flex is-align-items-center mb-4">
+                    <img src="/logo.svg" class="logo mr-4" alt="">
+                    <div class="mb-4">
+                        <h1 class="title">Blenderfarm</h1>
+                        <h2 class="subtitle">version α 1.0.0</h2>
+                    </div>
+                </div>
+
+                <form class="file is-info is-inline-flex mr-2">
+                    <label class="file-label control">
+                        <input class="file-input" type="file" name="blendfile" onchange="submit_file(event)" accept=".blend">
+                        <span class="file-cta">
+                            <span class="file-icon"> <i class="fas fa-cloud-arrow-up"></i> </span>
+                            <span class="file-label"> Upload .blend File </span>
+                        </span>
+                    </label>
+                </form>
+                <span id="message"></span>
+
+                <h2 class="title is-4 mt-5">Projects</h2>
+
+                <ul id="project_list"></ul>
+
+            </div>
+        </div>
+    </section>
+
+
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module">
+
+        const project_list = document.getElementById( 'project_list' )
+        const message = document.getElementById( 'message' )
+
+        const projects_request = await fetch( '/user_projects' )
+        const projects_response = await projects_request.json()
+        console.log( projects_response )
+
+        const render_formats = [
+            'PNG',
+            'BMP',
+            'JPEG',
+            'TIFF',
+            'OPEN_EXR'
+        ]
+        const render_formats_oddball = [
+            'TGA',
+            'RAWTGA',
+            'IRIS',
+            'IRIZ',
+            'AVIRAW',
+            'AVIJPEG',
+            'HDR',
+            'OPEN_EXR_MULTILAYER',
+            'MPEG',
+            'CINEON',
+            'DPX',
+            'DDS',
+            'JP2'
+        ]
+
+
+        for ( const file of projects_response.project_files ) { add_project( file ) }
+        if ( projects_response.project_files.length == 0 ) project_list.appendChild( Object.assign( document.createElement( 'li' ), { textContent: "No Projects Yet..." } ) )
+
+        if ( projects_response.is_admin == 1 ) document.querySelector( 'form.file' ).insertAdjacentElement( 'afterend', Object.assign( document.createElement( 'a' ), { href: "/admin", classList: "button", innerHTML: '<i class="fas fa-screwdriver-wrench mr-2"></i>Admin Panel' } ) )
+
+
+        function on_project_click( event )
+        {
+            const project_element = event.target.closest( ".project" )
+            if ( !project_element.classList.contains( 'unfolded' ) )
+            {
+                document.querySelector( '.unfolded' )?.classList.remove( 'unfolded' )
+                for ( const element of document.querySelectorAll( '.project > i.fas' ) )
+                {
+                    element.classList.remove( "fa-angle-up" )
+                    element.classList.add( "fa-angle-down" )
+                }
+            }
+            project_element.classList.toggle( 'unfolded' )
+            project_element.querySelector( "i.fas" ).classList.toggle( "fa-angle-down" )
+            project_element.querySelector( "i.fas" ).classList.toggle( "fa-angle-up" )
+        }
+        window.on_project_controls_click = function ( event ) { event.stopPropagation() }
+
+        function generate_option_elements( array )
+        {
+            let options_string = ""
+            for ( const option of array ) options_string += `<option>${option}</option>`
+            return options_string
+        }
+
+        window.on_switch_render_engine = function ( event )
+        {
+            const flag_gpu = event.target.parentNode.parentNode.querySelector( ".flag_gpu" )
+            const flag_cpu = event.target.parentNode.parentNode.querySelector( ".flag_cpu" )
+            if ( event.target.value === "CYCLES" )
+            {
+                flag_cpu.disabled = false
+                flag_gpu.disabled = false
+                return
+            }
+            flag_cpu.disabled = true
+            flag_cpu.checked = false
+            flag_gpu.disabled = true
+            flag_gpu.checked = false
+        }
+        window.on_switch_render_mode = function ( event )
+        {
+            const root = event.target.closest( '.project' )
+            const end_frame = root.querySelector( '.framenumber.end' )
+            if ( root.querySelector( '.mode_still' ).checked == true ) end_frame.disabled = true
+            else end_frame.disabled = false
+        }
+        for ( const element of document.querySelectorAll( '.engine_select, input[name="rendermode"]' ) ) element.dispatchEvent( new Event( "change" ) )
+
+
+
+        function add_project( data )
+        {
+            const project = document.createElement( 'li' )
+            project.classList.add( "project", "is-flex", "is-align-items-center", "is-flex-wrap-wrap", "pt-2", "mb-4" )
+
+            project.addEventListener( "click", on_project_click )
+
+            project.innerHTML = `<i class="blendfile mr-2 ml-4"></i>
+            <div class="tags has-addons mr-2">
+            <span class="tag is-dark"> Version </span>
+            <span class="tag is-warning"> ${data.version} </span>
+            </div>
+            <span class="mr-2 is-flex-grow-1 blendfilename">${data.filename.split( '.' ).shift()}</span>
+            <span class="tag is-dark mr-2">${data.size}</span>
+            <i class="fas fa-angle-down mr-4"></i>
+
+            <div class="project_controls is-flex-wrap-wrap is-fullwidth mt-2 p-4" onclick="on_project_controls_click(event)">
+            <div class="select is-small mr-2"><select class="installations">${generate_option_elements( projects_response.blender_versions )}</select></div>
+            <div class="select is-small mr-2"><select class="engine_select" onchange="on_switch_render_engine(event)"><option value="CYCLES">Cycles</option><option value="BLENDER_EEVEE">Eevee</option><option value="BLENDER_WORKBENCH">Workbench</option></select></div>
+            <label class="checkbox is-flex is-align-items-center mr-2"><input type="checkbox" class="flag_gpu mr-2">GPU</label><label class="checkbox is-flex is-align-items-center mr-2"><input type="checkbox" class="flag_cpu mr-2">CPU</label>
+            <div class="select is-small mr-2"><select class="render_format">${generate_option_elements( render_formats )}</select></div>
+            <form class="is-flex"><label class="radio is-flex is-align-items-center mr-2"><input type="radio" name="rendermode" class="mode_still mr-2" onchange="on_switch_render_mode(event)" value="STILL" checked>Still</label><label class="radio is-flex is-align-items-center mr-2"><input type="radio" name="rendermode" class="mode_animation mr-2" onchange="on_switch_render_mode(event)" value="ANIMATION">Animation</label></form>
+            <input type="number" class="input framenumber start is-small mr-2" placeholder="Start Frame">
+            <input type="number" class="input framenumber end is-small mr-2" placeholder="End Frame">
+            <input type="text" class="input add_arguments is-flex-grow-1 end is-small mr-2" placeholder="Additional Arguments">
+            <label class="control render_button mr-5"><button class="button is-small is-info" onclick="request_render(event)">Render</button></label>
+
+            <div class="is-fullwidth is-flex is-flex-wrap-wrap mt-4">
+                <button class="button askdelete is-small is-danger mr-2" onclick="confirm_delete(event)"><i class="fa-solid fa-trash mr-2"></i>Delete Project</button>
+                <div class="confirm_delete mr-2"><button class="button is-small is-danger" onclick="undo_delete(event)">X</button><button class="button is-small is-success" onclick="delete_file(event)">✓</button></div>
+                <button class="button show_console is-small is-info mr-2" onclick="toggle_console(event)"><i class="fas fa-terminal mr-2"></i>Show Console</button>
+                <button class="button clear_console is-small is-warning mr-2" onclick="clear_console(event)"><i class="fas fa-eraser mr-2"></i>Clear Console</button>
+                <a href="/renders/${data.filename.split( '.' ).shift()}" class="button results is-small is-success mr-2"><i class="fas fa-folder mr-2"></i></i>Rendered Files</a>
+                <progress class="progress is-info mt-4" value="0" max="100"></progress>
+                <ul class="console is-fullwidth has-background-black-bis has-text-light is-size-7 mt-4 p-4"></ul>
+            </div>
+
+            </div>`
+            project_list.appendChild( project )
+        }
+
+        window.submit_file = async function ( event )
+        {
+            const file = event.target.files[ 0 ]
+
+            const label = event.target.parentNode
+            const form = event.target.parentNode.parentNode
+            label.classList.add( "is-loading" )
+            form.classList.remove( "is-info" )
+            form.classList.add( "is-warning" )
+
+            label.querySelector( ".file-icon" ).remove()
+            label.querySelector( ".file-label" ).textContent = "Uploading"
+
+            label.querySelector( "input" ).disabled = true
+
+            const data = new FormData()
+            data.append( 'blendfile', file )
+
+            const request = await fetch( '/file', {
+                method: 'POST',
+                body: data
+            } )
+            const response = await request.json()
+
+            if ( response.status === 200 ) window.location.reload()
+            else message.textContent = "Something went wrong"
+        }
+
+
+        window.confirm_delete = function ( event )
+        {
+            const button = event.target
+            button.parentNode.querySelector( '.confirm_delete' ).classList.add( 'show' )
+            button.classList.remove( 'is-danger' )
+            button.classList.add( 'is-light' )
+            button.disabled = true
+            button.innerHTML = '<i class="fas fa-triangle-exclamation mr-2"></i>Are you sure? (no undo)'
+        }
+        window.undo_delete = function ( event )
+        {
+            event.target.parentNode.classList.remove( 'show' )
+            const button = event.target.closest( 'div.is-fullwidth' ).querySelector( '.askdelete' )
+            button.classList.add( 'is-danger' )
+            button.classList.remove( 'is-light' )
+            button.disabled = false
+            button.innerHTML = '<i class="fas fa-trash mr-2"></i>Delete Project'
+        }
+
+        window.delete_file = async function ( event )
+        {
+            const file = event.target.closest( "li.project" ).querySelector( '.blendfilename' ).textContent + ".blend"
+
+            const request = await fetch( '/file', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify( { file: file } )
+            } )
+            const response = await request.json()
+            if ( response.status == 200 ) window.location.reload()
+        }
+
+
+        function add_console_output( console_element, msg, class_name )
+        {
+            console_element.appendChild( Object.assign( document.createElement( 'li' ), { textContent: msg, classList: class_name } ) )
+            console_element.scrollTop = console_element.scrollHeight
+
+            if ( console_element.children.length > 512 ) console_element.children[ 0 ].remove()
+        }
+
+        window.request_render = async function ( event )
+        {
+            event.target.parentNode.classList.add( "is-loading" )
+            event.target.classList.add( "is-warning" )
+            event.target.disabled = true
+            event.target.textContent = "Rendering..."
+
+            const root = event.target.closest( ".project_controls" )
+            const console_element = root.querySelector( ".console" )
+            const progress_element = root.querySelector( ".progress" )
+            const version = root.querySelector( ".installations" ).value
+            const args = generate_render_arguments( root )
+            if ( args == null ) return
+
+            const socket = io()
+            socket.on( "debug", msg => console.log( msg ) )
+            socket.on( "console", msg => add_console_output( console_element, msg ) )
+
+            progress_element.classList.add( "show" )
+            socket.on( "progress", ( value ) => progress_element.value = value )
+
+            socket.on( "connection_ready", async () =>
+            {
+                const socket_id = socket.id
+                const request = await fetch( '/render', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( { version, args, socket_id } )
+                } )
+                const response = await request.json()
+                if ( response.status == 200 ) add_console_output( console_element, response.msg, "has-text-success" )
+                else add_console_output( console_element, response.msg, "has-text-danger" )
+
+                socket.close()
+                progress_element.classList.remove( "show" )
+                progress_element.value = 0
+
+                event.target.parentNode.classList.remove( "is-loading" )
+                event.target.classList.remove( "is-warning" )
+                event.target.disabled = false
+                event.target.textContent = "Render"
+            } )
+
+        }
+
+        function generate_render_arguments( controls_element )
+        {
+            const filename = controls_element.parentNode.querySelector( ".blendfilename" ).textContent
+            const install_version = controls_element.querySelector( ".installations" ).value
+            const render_mode = controls_element.querySelector( 'input[name="rendermode"]:checked' ).value
+            const engine = controls_element.querySelector( ".engine_select" ).value
+            const start_frame = parseInt( controls_element.querySelector( ".framenumber.start" ).value )
+            const end_frame = parseInt( controls_element.querySelector( ".framenumber.end" ).value )
+            const flag_gpu = controls_element.querySelector( ".flag_gpu" ).checked ? "OPTIX" : "" // Use OptiX by default, change to CUDA | HIP | ONEAPI | METAL where relevant
+            const flag_cpu = controls_element.querySelector( ".flag_cpu" ).checked ? "CPU" : ""
+            const render_device = ( flag_cpu !== "" && flag_gpu !== "" ) ? `${flag_gpu}+${flag_cpu}` : `${flag_cpu}${flag_gpu}`
+
+            const arg_engine = ` -E ${engine}`
+            const arg_render_format = ` -F ${controls_element.querySelector( ".render_format" ).value} -x 1`
+            const arg_cycles_options = ( engine === "CYCLES" && ( flag_cpu !== "" || flag_gpu !== "" ) ) ? ` -- --cycles-device ${render_device}` : ""
+            const arg_render_mode = ( render_mode === 'STILL' ) ? ` -f ${start_frame}` : ` -s ${start_frame} -e ${end_frame} -a`
+
+            if ( isNaN( start_frame ) )
+            {
+                controls_element.querySelector( ".framenumber.start" ).classList.add( "is-danger" )
+                return null
+            }
+
+            for ( const element of controls_element.querySelectorAll( ".framenumber" ) ) element.classList.remove( "is-danger" )
+
+            if ( render_mode === 'ANIMATION' && isNaN( end_frame ) )
+            {
+                controls_element.querySelector( ".framenumber.end" ).classList.add( "is-danger" )
+                return null
+            }
+
+            const args_base = `-b ${filename}.blend -o //${filename}.blend_renders/frame_####`
+            console.log( args_base.concat( arg_render_format, arg_engine, arg_render_mode, arg_cycles_options ) )
+            return args_base.concat( arg_render_format, arg_engine, arg_render_mode, arg_cycles_options ).split( " " )
+        }
+
+        window.toggle_console = function ( event )
+        {
+            const console = event.target.parentNode.querySelector( '.console' )
+            console.classList.toggle( "show" )
+            event.target.innerHTML = ( console.classList.contains( "show" ) ) ? '<i class="fas fa-terminal mr-2"></i>Hide Console' : '<i class="fas fa-terminal mr-2"></i>Show Console'
+        }
+        window.clear_console = function ( event ) { event.target.parentNode.querySelector( '.console' ).innerHTML = "" }
+
+
+    </script>
+</body>
+
+</html>

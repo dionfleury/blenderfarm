@@ -1,0 +1,20 @@
+{
+    "global": {
+        "PORT": "8080",
+        "JWT_SECRET": "YOUR SECRET HERE"
+    },
+    "users": [
+        {
+            "uuid": "0000",
+            "username": "admin",
+            "password": "admin",
+            "permissions": "1"
+        }
+    ],
+    "blender_installations": [
+        {
+            "version": "3.3",
+            "exe_path": "C:/Program Files/Blender Foundation/Blender 3.3/Blender.exe"
+        }
+    ]
+}

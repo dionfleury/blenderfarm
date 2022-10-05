@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blenderfarm Dashboard</title>
+
+    <link rel="stylesheet" href="/bulma/bulma.min.css">
+    <link rel="stylesheet" href="/fontawesome/css/all.min.css">
+
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
+
+        .render {
+            border-radius: .25rem;
+            overflow: hidden;
+        }
+
+        .render:hover {
+            box-shadow: 0 0.5em 1em -0.125em rgb(10 10 10 / 10%), 0 0 0 1px rgb(10 10 10 / 2%);
+        }
+
+        div.is-fullwidth {
+            width: 100%;
+        }
+
+        .imgfile {
+            width: 46px;
+            background-color: #353535;
+            background-image: url('/image_icon.svg');
+            background-size: contain;
+            background-position: center;
+        }
+
+        .is-absolute {
+            position: absolute;
+        }
+
+        #blob_element {
+            display: none;
+        }
+
+        .download_msg.is-loading::after {
+            left: 0;
+            top: 0.25rem;
+            border: 2px solid #b5b5b5;
+            border-right-color: transparent;
+            border-top-color: transparent;
+        }
+
+        @media screen and (min-width: 1024px) {
+
+            .modal-card,
+            .modal-content {
+                width: 800px;
+            }
+        }
+
+        @media screen and (min-width: 1216px) {
+
+            .modal-card,
+            .modal-content {
+                width: 992px;
+            }
+        }
+
+        @media screen and (min-width: 1408px) {
+
+            .modal-card,
+            .modal-content {
+                width: 1184px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <section class="section has-background-info" style="min-height: 100vh;">
+        <div class="container">
+            <div class="box">
+                <h1 class="title">Rendered Files</h1>
+                <h2 class="subtitle">
+                    <div class="tags has-addons mr-2">
+                        <span class="tag is-dark"> Project </span>
+                        <span class="tag is-info">
+                            <%= data.project %>
+                        </span>
+                    </div>
+                </h2>
+
+                <button class="button is-info mr-2" onclick="download_zip()"><i class="fas fa-download mr-2"></i>Zip and Download All</button>
+                <a href="/" class="button"><i class="fas fa-arrow-left mr-2"></i>Back to Projects</a>
+
+                <div class="download_msg control mt-4 pl-5"></div>
+
+                <h2 class="title is-4 mt-5">Files</h2>
+
+                <ul id="renders_list">
+                    <% for (const image of data.images) { %>
+                        <li class="render is-flex mb-4">
+                            <i class="imgfile mr-2"></i>
+                            <div class="render-content is-flex is-fullwidth is-justify-content-space-between p-2">
+                                <span class="tag is-dark mr-2">
+                                    <%= image.size %>
+                                </span>
+                                <span class="filename is-flex-grow-1">
+                                    <%= image.path.split("/").pop().split(".").shift() %>
+                                </span>
+                                <button class="button is-small is-success mr-2" onclick="open_modal( event )"><i class="fas fa-eye mr-2"></i> View</button>
+                                <div class="modal">
+                                    <div class="modal-background"></div>
+                                    <div class="modal-content">
+                                        <p class="image is-16by9"><img data-src="<%= image.path %>">
+                                            <button class="modal-close is-absolute is-large" aria-label="close"></button>
+                                        </p>
+                                    </div>
+                                </div>
+                                <a href="<%= image.path %>" class="button is-small is-info" download><i class="fas fa-download mr-2"></i> Download</a>
+                            </div>
+                        </li>
+                        <% } %>
+                </ul>
+
+            </div>
+        </div>
+    </section>
+
+    <a id="download_element"></a>
+
+
+    <script>
+        function open_modal( event )
+        {
+            const root = event.target.closest( ".render-content" )
+            root.querySelector( ".modal" ).classList.add( "is-active" )
+            const img = root.querySelector( ".modal img" )
+            if ( img.src == "" ) img.src = img.dataset.src
+        }
+        function close_all_modals() { for ( const modal of document.querySelectorAll( ".modal" ) ) modal.classList.remove( "is-active" ) }
+
+        for ( const element of document.querySelectorAll( ".modal, .modal-background, .modal-content, .modal image, .modal-close" ) ) element.addEventListener( "click", close_all_modals )
+
+        document.addEventListener( "keydown", event =>
+        {
+            const e = event || window.event
+            if ( e.keyCode === 27 ) close_all_modals() //Escape key
+        } )
+
+
+        const download_element = document.getElementById( "download_element" )
+        const download_msg = document.querySelector( ".download_msg" )
+
+        async function download_zip()
+        {
+            const path = `/renders/<%= data.project %>/download`
+
+            download_msg.classList.add( "is-loading" )
+            download_msg.textContent = "zipping and preparing file for download..."
+
+            const request = await fetch( path )
+            const response = await request.blob()
+
+            download_element.href = URL.createObjectURL( response )
+            download_element.download = `<%= data.project %>.zip`
+            download_element.click()
+
+            download_msg.classList.remove( "is-loading" )
+            download_msg.textContent = ""
+        }
+    </script>
+
+</body>
+
+</html>
