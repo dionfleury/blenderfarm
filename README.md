@@ -61,10 +61,10 @@ Blenderfarm **should** be platform-agnostic since most of the internal code revo
 4. Run the app through Node.js or a process manager like `nodemon`, `forever` or `pm2`
    
    ```
-   > node app
-   > nodemon app
-   > forever app
-   > pm2 start app
+   > node blenderfarm
+   > nodemon blenderfarm
+   > forever blenderfarm
+   > pm2 start blenderfarm
    ```
 
 5. Visit `http:/localhost:PORT/` in your browser to open the interface

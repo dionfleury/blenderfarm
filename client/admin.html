@@ -70,24 +70,21 @@
                     <button class="button is-small mt-2 is-success" onclick="add_new_user()"><i class="fas fa-plus mr-2"></i>add</button>
                 </ul>
 
-
-
-
-
-
                 <div class="block mt-4">
                     <button class="button is-info" onclick="save_config()"><i class="fas fa-floppy-disk mr-2"></i>Save Config</button>
                     <a href="/" class="button"><i class="fas fa-arrow-left mr-2"></i>Return</a>
                 </div>
                 <span id="msg"></span>
             </div>
+
+            <a href="https://github.com/dionfleury/blenderfarm" class="is-flex is-justify-content-center">
+                <span class="tags has-addons">
+                    <span class="tag is-medium is-dark pr-3"><i class="fa-brands fa-github"></i></span>
+                    <span class="tag is-medium has-text-weight-medium mr-2">blenderfarm</span>
+                </span>
+            </a>
         </div>
-
     </section>
-
-
-
-
 
     <script type="module">
 
@@ -122,8 +119,6 @@
         function generate_uuid( length = 4 ) { return parseInt( Math.ceil( Math.random() * Date.now() ).toPrecision( length ).toString().replace( ".", "" ) ) }
 
 
-
-
         window.remove_version = function ( event ) { event.target.parentNode.remove() }
 
         function populate_server_config( data )
@@ -131,7 +126,6 @@
             server_settings.innerHTML += `\n<label class="label">Port<input class="input cnf_port" type="text" value="${data.PORT}"></label>`
             server_settings.innerHTML += `\n<label class="label">JWT Secret<input class="input cnf_jwt" type="text" value="${data.JWT_SECRET}"></label>`
         }
-
 
 
         function update_config()
